@@ -28,12 +28,17 @@ var testList = [...]test{
 	},
 	{
 		name:     "specialchars",
-		input:    "###one### two three !!!one!!! ---one--- two",
+		input:    "###one### two three ^^ ^^ $$ !!!one!!! ---one--- two",
 		expected: []string{"one", "two"},
 	},
 	{
 		name:     "specialchars in word",
 		input:    "###one### two~~~three !!!one!!! ---one--- two",
+		expected: []string{"one", "two"},
+	},
+	{
+		name:     "digits in word",
+		input:    "123one456 two789three 123one456 789one000 two",
 		expected: []string{"one", "two"},
 	},
 	{
@@ -45,6 +50,11 @@ var testList = [...]test{
 		name:     "slashes and regexp special symbols",
 		input:    `\ \s ^ $ $ \p \d [] . * \+ \- \\ \n \r \t \n \r \t \`,
 		expected: []string{"n", "r", "t"},
+	},
+	{
+		name:     "other alphabets",
+		input:    `Schulabgänger? Student? Absolvent? Berufserfahrener? Њ tessssstttt Њ šo 勝利 الرفاق 勝利 الرفاق Schulabgänger? Student? Absolvent? Berufserfahrener?`,
+		expected: []string{"schulabgänger", "student", "absolvent", "berufserfahrener", "њ", "勝利", "الرفاق"},
 	},
 }
 

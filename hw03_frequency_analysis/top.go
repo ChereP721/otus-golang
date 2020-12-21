@@ -15,7 +15,7 @@ type wordRepeat struct {
 
 func Top10(str string) []string {
 	str = strings.ToLower(str)
-	re := regexp.MustCompile(`[a-zA-Zа-яА-Я-ёЁ]+`)
+	re := regexp.MustCompile(`[\p{L}-]+`)
 
 	strWordList := re.FindAllString(str, -1)
 
