@@ -13,49 +13,41 @@ type lruCache struct {
 	mu       sync.Mutex
 	capacity int
 	queue    List
-	items    map[Key]*listItem
+	items    map[Key]*cacheItem
 }
 
 type cacheItem struct {
-	key   Key
-	value interface{}
-}
-
-func getCacheItem(value interface{}) cacheItem {
-	ci, ok := value.(cacheItem)
-	if !ok {
-		// поскольку в интерфейсе нет возврата ошибки - паникуем
-		panic("Wrong cache item type!")
-	}
-
-	return ci
+	value     interface{}
+	queueItem *listItem
 }
 
 func (cache *lruCache) Set(key Key, value interface{}) bool {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	li, ok := cache.items[key]
+	cacheEl, ok := cache.items[key]
 	if ok {
-		ci := getCacheItem(li.Value)
-		ci.value = value
-		li.Value = ci
-		cache.queue.MoveToFront(li)
+		cacheEl.value = value
+		cache.queue.MoveToFront(cacheEl.queueItem)
 
 		return true
 	}
 
 	if len(cache.items) == cache.capacity {
-		delKey := getCacheItem(cache.queue.Back().Value).key
+		delKey, ok := cache.queue.Back().Value.(Key)
+		if !ok {
+			// поскольку в интерфейсе нет возврата ошибки - паникуем
+			panic("Wrong cache item type!")
+		}
 		cache.queue.Remove(cache.queue.Back())
 		delete(cache.items, delKey)
 	}
 
-	newItem := cache.queue.PushFront(cacheItem{
-		key:   key,
-		value: value,
-	})
-	cache.items[key] = newItem
+	newQueueItem := cache.queue.PushFront(key)
+	cache.items[key] = &cacheItem{
+		value:     value,
+		queueItem: newQueueItem,
+	}
 
 	return false
 }
@@ -64,22 +56,23 @@ func (cache *lruCache) Get(key Key) (interface{}, bool) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	li, ok := cache.items[key]
+	cacheEl, ok := cache.items[key]
 	if !ok {
 		return nil, false
 	}
 
-	cache.queue.MoveToFront(li)
-	return getCacheItem(li.Value).value, true
+	cache.queue.MoveToFront(cacheEl.queueItem)
+
+	return cacheEl.value, true
 }
 
 func (cache *lruCache) Clear() {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	for k, li := range cache.items {
-		cache.queue.Remove(li)
-		delete(cache.items, k)
+	for key, cacheEl := range cache.items {
+		cache.queue.Remove(cacheEl.queueItem)
+		delete(cache.items, key)
 	}
 }
 
@@ -88,6 +81,6 @@ func NewCache(capacity int) Cache {
 		mu:       sync.Mutex{},
 		capacity: capacity,
 		queue:    NewList(),
-		items:    make(map[Key]*listItem),
+		items:    make(map[Key]*cacheItem),
 	}
 }
