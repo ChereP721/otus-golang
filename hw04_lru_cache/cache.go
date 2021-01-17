@@ -21,14 +21,14 @@ type cacheItem struct {
 	value interface{}
 }
 
-func getCacheItemPtr(value interface{}) *cacheItem {
-	ciPtr, ok := value.(*cacheItem)
+func getCacheItem(value interface{}) cacheItem {
+	ci, ok := value.(cacheItem)
 	if !ok {
 		// поскольку в интерфейсе нет возврата ошибки - паникуем
 		panic("Wrong cache item type!")
 	}
 
-	return ciPtr
+	return ci
 }
 
 func (cache *lruCache) Set(key Key, value interface{}) bool {
@@ -37,19 +37,21 @@ func (cache *lruCache) Set(key Key, value interface{}) bool {
 
 	li, ok := cache.items[key]
 	if ok {
-		getCacheItemPtr(li.Value).value = value
+		ci := getCacheItem(li.Value)
+		ci.value = value
+		li.Value = ci
 		cache.queue.MoveToFront(li)
 
 		return true
 	}
 
 	if len(cache.items) == cache.capacity {
-		delKey := getCacheItemPtr(cache.queue.Back().Value).key
+		delKey := getCacheItem(cache.queue.Back().Value).key
 		cache.queue.Remove(cache.queue.Back())
 		delete(cache.items, delKey)
 	}
 
-	newItem := cache.queue.PushFront(&cacheItem{
+	newItem := cache.queue.PushFront(cacheItem{
 		key:   key,
 		value: value,
 	})
@@ -68,7 +70,7 @@ func (cache *lruCache) Get(key Key) (interface{}, bool) {
 	}
 
 	cache.queue.MoveToFront(li)
-	return getCacheItemPtr(li.Value).value, true
+	return getCacheItem(li.Value).value, true
 }
 
 func (cache *lruCache) Clear() {
