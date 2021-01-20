@@ -1,5 +1,8 @@
 package hw04_lru_cache //nolint:golint,stylecheck
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type Key string
 
@@ -21,30 +24,24 @@ type cacheItem struct {
 	queueItem *listItem
 }
 
-func (cache *lruCache) Set(key Key, value interface{}) bool {
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
+func (c *lruCache) Set(key Key, value interface{}) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	cacheEl, ok := cache.items[key]
+	cacheEl, ok := c.items[key]
 	if ok {
 		cacheEl.value = value
-		cache.queue.MoveToFront(cacheEl.queueItem)
+		c.queue.MoveToFront(cacheEl.queueItem)
 
 		return true
 	}
 
-	if len(cache.items) == cache.capacity {
-		delKey, ok := cache.queue.Back().Value.(Key)
-		if !ok {
-			// поскольку в интерфейсе нет возврата ошибки - паникуем
-			panic("Wrong cache item type!")
-		}
-		cache.queue.Remove(cache.queue.Back())
-		delete(cache.items, delKey)
+	if len(c.items) == c.capacity {
+		c.pushOut()
 	}
 
-	newQueueItem := cache.queue.PushFront(key)
-	cache.items[key] = &cacheItem{
+	newQueueItem := c.queue.PushFront(key)
+	c.items[key] = &cacheItem{
 		value:     value,
 		queueItem: newQueueItem,
 	}
@@ -52,28 +49,36 @@ func (cache *lruCache) Set(key Key, value interface{}) bool {
 	return false
 }
 
-func (cache *lruCache) Get(key Key) (interface{}, bool) {
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
+func (c *lruCache) pushOut() {
+	delKey, ok := c.queue.Back().Value.(Key)
+	if !ok {
+		// поскольку в интерфейсе нет возврата ошибки - паникуем
+		panic(fmt.Sprintf("Problem in lruCache.Set realization - wrong queue value type: expected - Key, actual - %T", c.queue.Back().Value))
+	}
+	c.queue.Remove(c.queue.Back())
+	delete(c.items, delKey)
+}
 
-	cacheEl, ok := cache.items[key]
+func (c *lruCache) Get(key Key) (interface{}, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	cacheEl, ok := c.items[key]
 	if !ok {
 		return nil, false
 	}
 
-	cache.queue.MoveToFront(cacheEl.queueItem)
+	c.queue.MoveToFront(cacheEl.queueItem)
 
 	return cacheEl.value, true
 }
 
-func (cache *lruCache) Clear() {
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
+func (c *lruCache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	for key, cacheEl := range cache.items {
-		cache.queue.Remove(cacheEl.queueItem)
-		delete(cache.items, key)
-	}
+	c.queue = NewList()
+	c.items = make(map[Key]*cacheItem, c.capacity)
 }
 
 func NewCache(capacity int) Cache {
@@ -81,6 +86,6 @@ func NewCache(capacity int) Cache {
 		mu:       sync.Mutex{},
 		capacity: capacity,
 		queue:    NewList(),
-		items:    make(map[Key]*cacheItem),
+		items:    make(map[Key]*cacheItem, capacity),
 	}
 }

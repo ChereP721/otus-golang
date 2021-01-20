@@ -100,6 +100,22 @@ func TestCache(t *testing.T) {
 		}
 	})
 
+	t.Run("Clear logic", func(t *testing.T) {
+		c := NewCache(3)
+		numberList := []int{1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5}
+		for _, number := range numberList {
+			c.Set(itoKey(number), number)
+		}
+
+		c.Clear()
+
+		for _, number := range numberList {
+			val, ok := c.Get(itoKey(number))
+			require.False(t, ok)
+			require.Nil(t, val)
+		}
+	})
+
 	/*
 		в задании сказано тест "на логику выталкивания редкоиспользуемых элементов"
 		но LRU это не про частоту, а про последовательность использования
