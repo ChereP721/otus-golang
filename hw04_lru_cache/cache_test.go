@@ -9,6 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testNumber struct {
+	key           Key
+	expectedValue interface{}
+	expectedOk    bool
+}
+
+func itoKey(i int) Key {
+	return Key(strconv.Itoa(i))
+}
+
 func TestCache(t *testing.T) {
 	t.Run("empty cache", func(t *testing.T) {
 		c := NewCache(10)
@@ -49,14 +59,137 @@ func TestCache(t *testing.T) {
 		require.Nil(t, val)
 	})
 
+	t.Run("LRU wiki example", func(t *testing.T) {
+		//Пример из https://ru.bmstu.wiki/LRU_(Least_Recently_Used)
+		c := NewCache(3)
+		numberList := []int{1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5}
+		for _, number := range numberList {
+			c.Set(itoKey(number), number)
+		}
+
+		for _, tst := range [...]testNumber{
+			{
+				key:           "1",
+				expectedValue: nil,
+				expectedOk:    false,
+			},
+			{
+				key:           "2",
+				expectedValue: nil,
+				expectedOk:    false,
+			},
+			{
+				key:           "3",
+				expectedValue: 3,
+				expectedOk:    true,
+			},
+			{
+				key:           "4",
+				expectedValue: 4,
+				expectedOk:    true,
+			},
+			{
+				key:           "5",
+				expectedValue: 5,
+				expectedOk:    true,
+			},
+		} {
+			val, ok := c.Get(tst.key)
+			require.Equal(t, tst.expectedValue, val)
+			require.Equal(t, tst.expectedOk, ok)
+		}
+	})
+
+	t.Run("Clear logic", func(t *testing.T) {
+		c := NewCache(3)
+		numberList := []int{1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5}
+		for _, number := range numberList {
+			c.Set(itoKey(number), number)
+		}
+
+		c.Clear()
+
+		for _, number := range numberList {
+			val, ok := c.Get(itoKey(number))
+			require.False(t, ok)
+			require.Nil(t, val)
+		}
+	})
+
+	/*
+		в задании сказано тест "на логику выталкивания редкоиспользуемых элементов"
+		но LRU это не про частоту, а про последовательность использования
+		тест ниже показывает это
+	*/
+	t.Run("NONE often/rarely logic", func(t *testing.T) {
+		c := NewCache(3)
+		numberList := []int{
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 10
+			2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // 20
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 30
+			3, 4, 5,
+		}
+		for _, number := range numberList {
+			c.Set(itoKey(number), number)
+		}
+
+		for _, tst := range [...]testNumber{
+			{
+				key:           "1",
+				expectedValue: nil,
+				expectedOk:    false, // хоть это и самый частоиспользуемый элемент
+			},
+			{
+				key:           "2",
+				expectedValue: nil,
+				expectedOk:    false,
+			},
+			{
+				key:           "3",
+				expectedValue: 3,
+				expectedOk:    true,
+			},
+			{
+				key:           "4",
+				expectedValue: 4,
+				expectedOk:    true,
+			},
+			{
+				key:           "5",
+				expectedValue: 5,
+				expectedOk:    true,
+			},
+		} {
+			val, ok := c.Get(tst.key)
+			require.Equal(t, tst.expectedValue, val)
+			require.Equal(t, tst.expectedOk, ok)
+		}
+	})
+
+	//тест на выталкивание самого давно использованного элемента
 	t.Run("purge logic", func(t *testing.T) {
-		// Write me
+		c := NewCache(3)
+
+		numberListSet := []int{1, 2, 3}
+		for _, number := range numberListSet {
+			c.Set(itoKey(number), number)
+		}
+
+		numberListGet := []int{3, 1, 1, 1, 3, 3, 1}
+		for _, number := range numberListGet {
+			c.Get(itoKey(number))
+		}
+
+		wasInCache := c.Set("new Key", "new Value")
+		require.False(t, wasInCache)
+
+		val, ok := c.Get("2")
+		require.False(t, ok)
+		require.Nil(t, val)
 	})
 }
 
 func TestCacheMultithreading(t *testing.T) {
-	t.Skip() // NeedRemove if task with asterisk completed
-
 	c := NewCache(10)
 	wg := &sync.WaitGroup{}
 	wg.Add(2)

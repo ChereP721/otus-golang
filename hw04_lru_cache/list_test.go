@@ -15,6 +15,47 @@ func TestList(t *testing.T) {
 		require.Nil(t, l.Back())
 	})
 
+	t.Run("one element and clear logic", func(t *testing.T) {
+		l := NewList()
+
+		l.PushFront("someone")
+		require.Equal(t, 1, l.Len())
+		require.Equal(t, l.Back(), l.Front())
+
+		l.Remove(l.Front())
+		require.Equal(t, 0, l.Len())
+		require.Nil(t, l.Back())
+		require.Nil(t, l.Front())
+
+		l.PushBack("someone")
+		require.Equal(t, 1, l.Len())
+		require.Equal(t, l.Back(), l.Front())
+
+		l.MoveToFront(l.Back())
+		require.Equal(t, 1, l.Len())
+		require.Equal(t, l.Back(), l.Front())
+
+		l.Remove(l.Back())
+		require.Equal(t, 0, l.Len())
+		require.Nil(t, l.Back())
+		require.Nil(t, l.Front())
+	})
+
+	t.Run("prev next logic", func(t *testing.T) {
+		l := NewList()
+
+		l.PushFront("front el")
+		l.PushBack("middle el")
+		require.Equal(t, l.Back(), l.Front().Next)
+		require.Equal(t, l.Front(), l.Back().Prev)
+
+		l.PushBack("back el")
+		require.Equal(t, l.Back().Prev, l.Front().Next)
+		require.NotNil(t, l.Back().Prev) // чтобы мы случайно не сравнили  l.Back().Next, l.Front().Prev, которые оба nil и тест пройдет
+		require.Equal(t, l.Back().Prev.Prev, l.Front())
+		require.Equal(t, l.Back(), l.Front().Next.Next)
+	})
+
 	t.Run("complex", func(t *testing.T) {
 		l := NewList()
 
