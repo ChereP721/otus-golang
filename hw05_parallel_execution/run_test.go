@@ -37,6 +37,29 @@ func TestRun(t *testing.T) {
 		require.LessOrEqual(t, runTasksCount, int32(workersCount+maxErrorsCount), "extra tasks were started")
 	})
 
+	t.Run("ignore errors", func(t *testing.T) {
+		tasksCount := 50
+		tasks := make([]Task, 0, tasksCount)
+
+		var runTasksCount int32
+
+		for i := 0; i < tasksCount; i++ {
+			err := fmt.Errorf("error from task %d", i)
+			tasks = append(tasks, func() error {
+				time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+				atomic.AddInt32(&runTasksCount, 1)
+				return err
+			})
+		}
+
+		workersCount := 10
+		maxErrorsCount := 0
+		result := Run(tasks, workersCount, maxErrorsCount)
+
+		require.Nil(t, result)
+		require.Equal(t, runTasksCount, int32(tasksCount), "not ignore errors")
+	})
+
 	t.Run("tasks without errors", func(t *testing.T) {
 		tasksCount := 50
 		tasks := make([]Task, 0, tasksCount)
@@ -65,5 +88,53 @@ func TestRun(t *testing.T) {
 
 		require.Equal(t, runTasksCount, int32(tasksCount), "not all tasks were completed")
 		require.LessOrEqual(t, int64(elapsedTime), int64(sumTime/2), "tasks were run sequentially?")
+	})
+
+	t.Run("tasks without errors eventually", func(t *testing.T) {
+		tasksCount := 50
+		tasks := make([]Task, 0, tasksCount)
+
+		var runTasksCount int32
+		var sumTime time.Duration
+
+		for i := 0; i < tasksCount; i++ {
+			taskSleep := time.Millisecond * time.Duration(rand.Intn(100)+1)
+			sumTime += taskSleep
+
+			tasks = append(tasks, func() error {
+				require.Eventually(t, func() bool { return true }, taskSleep*2, taskSleep)
+				atomic.AddInt32(&runTasksCount, 1)
+				return nil
+			})
+		}
+
+		workersCount := 5
+		maxErrorsCount := 1
+
+		start := time.Now()
+		result := Run(tasks, workersCount, maxErrorsCount)
+		elapsedTime := time.Since(start)
+		require.Nil(t, result)
+
+		require.Equal(t, runTasksCount, int32(tasksCount), "not all tasks were completed")
+		require.LessOrEqual(t, int64(elapsedTime), int64(sumTime/2), "tasks were run sequentially?")
+	})
+
+	t.Run("negative or zero N", func(t *testing.T) {
+		tasks := []Task{}
+		result := Run(tasks, 10, 100)
+		require.Equal(t, result, ErrErrorNegativeZeroN)
+
+		tasks = append(tasks,
+			func() error {
+				return nil
+			},
+		)
+
+		result = Run(tasks, 0, 100)
+		require.Equal(t, result, ErrErrorNegativeZeroN)
+
+		result = Run(tasks, -1, 100)
+		require.Equal(t, result, ErrErrorNegativeZeroN)
 	})
 }
